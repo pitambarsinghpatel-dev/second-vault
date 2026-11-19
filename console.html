@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"><head><base target="_top"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Vault · Console</title>
+<style>
+:root{--g:#0B3D24;--gold:#B8913A;--tint:#F6F3EA;--line:#e4dccb;--mut:#6b6b6b;--red:#b42318}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter','Segoe UI',Roboto,'Noto Sans Devanagari','Nirmala UI',Arial,system-ui,sans-serif;background:var(--tint);color:#1c1c1c;font-size:15px}
+header{background:var(--g);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:3;border-bottom:3px solid var(--gold)}
+header img{height:26px;background:#fff;border-radius:5px;padding:2px 4px}
+main{padding:12px;max-width:760px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+h2{font-size:14px;margin:0 0 8px;color:var(--g);text-transform:uppercase;letter-spacing:.05em}
+.stats{display:flex;gap:14px;flex-wrap:wrap}.stats div{font-size:12px;color:var(--mut)}.stats b{display:block;font-size:24px;color:var(--g)}
+.scr{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scr button{text-align:left;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font:inherit;position:relative}
+.scr button b{display:block;font-size:14px}.scr button span{display:block;font-size:12px;color:var(--mut)}
+.scr button.on{background:var(--g);color:#fff;border-color:var(--g)}.scr button.on span{color:#e9dcc0}
+.scr button i{position:absolute;right:8px;top:8px;font-style:normal;font-size:12px;background:var(--gold);color:#fff;border-radius:999px;padding:2px 8px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f0ebe0}.row:last-child{border:0}
+.tog{min-width:92px;padding:10px;border-radius:10px;border:0;font:inherit;font-weight:700;background:#e9e4d8;color:#444}.tog.on{background:var(--gold);color:#fff}
+.n{font-weight:700;color:var(--g)}.muted{color:var(--mut);font-size:12px}
+.small{padding:8px 12px;border-radius:8px;border:0;font:inherit;font-size:13px;background:#eee}
+.ok{background:#e6f2ea;color:#1f7a4d}.no{background:#fbe9e7;color:var(--red)}.sh{background:var(--g);color:#fff}
+.mod{padding:8px 0;border-bottom:1px solid #f0ebe0}
+.timer{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.timer .t{font-size:30px;font-weight:800;color:var(--g);min-width:90px}
+input{font:inherit;padding:12px;border:1.5px solid var(--line);border-radius:10px;width:100%}
+.btn{width:100%;padding:14px;border:0;border-radius:10px;background:var(--g);color:#fff;font:inherit;font-weight:700;margin-top:10px}
+.err{color:var(--red);font-size:13px;margin-top:8px}
+</style></head><body>
+<header><b>Second Vault · Console</b><span><span id="tick" class="muted" style="color:#e9dcc0"></span> <img src="pv.jpg"></span></header>
+<main id="app"><div class="card"><h2>PIN</h2><input id="pin" type="password" inputmode="numeric" placeholder="Console PIN"><button class="btn" id="go">Open</button><div class="err" id="err"></div></div></main>
+<script src="gas.js"></script>
+<script>
+var PIN=null,DATA=null,BUSY=false,SKEW=0,TM=null;
+try{PIN=sessionStorage.getItem('sv_pin');}catch(e){}
+function call(fn){var a=Array.prototype.slice.call(arguments,1);return new Promise(function(res,rej){google.script.run.withSuccessHandler(res).withFailureHandler(function(e){var m=String(e&&e.message||e),i=m.indexOf('SV|');rej(new Error(i<0?m:m.slice(i+3)));})[fn].apply(null,a);});}
+function $(i){return document.getElementById(i);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+$('go').onclick=function(){PIN=$('pin').value;load(true);};
+function load(first){call('cGet',PIN).then(function(d){try{sessionStorage.setItem('sv_pin',PIN);}catch(e){}SKEW=d.now-Date.now();DATA=d;if(!BUSY)render();$('tick').textContent=new Date().toLocaleTimeString('en-IN');
+  if(first)setInterval(function(){if(!BUSY)load(false);},4000);}).catch(function(e){if(first)$('err').textContent=e.message;});}
+function act(p){BUSY=true;return p.then(function(){BUSY=false;load(false);}).catch(function(e){BUSY=false;alert(e.message);load(false);});}
+var OPENOF={g1open:'G1',g2open:'G2',g3open:'G3',b8open:'B8',preloop:'B0'};
+function render(){var d=DATA,st=d.state,cnt={};d.activities.forEach(function(a){cnt[a.id]=a;});
+  var h='<div class="card stats"><div><b>'+d.checkedIn+'</b>Checked in</div>'+d.activities.map(function(a){var p=d.checkedIn?Math.round(a.n/d.checkedIn*100):0;return '<div><b>'+a.n+'</b>'+a.id+' · '+p+'%</div>';}).join('')+'<div><b>'+d.discuss+'</b>Want discussion</div></div>';
+  h+='<div class="card"><h2>Screens on the projector (in run order)</h2><div class="scr">'+d.views.map(function(v){var a=OPENOF[v[0]]?cnt[OPENOF[v[0]]]:null;
+    return '<button data-view="'+v[0]+'" class="'+(st.wall.view===v[0]?'on':'')+'"><b>'+esc(v[1])+'</b><span>'+esc(v[2])+'</span>'+(a?'<i>'+a.n+'/'+d.checkedIn+'</i>':'')+'</button>';}).join('')+'</div>'+
+    '<p class="muted">OPEN screens also open that activity on phones; WALL screens close it. A chart appears only after 10 responses (Test mode lowers this).</p></div>';
+  h+='<div class="card"><h2>Timer on the projector</h2><div class="timer"><span class="t" id="tm">—</span><button class="small sh" data-t="75">75 s</button><button class="small sh" data-t="120">120 s</button><button class="small sh" data-t="60">60 s</button><button class="small no" data-t="0">Clear</button></div></div>';
+  h+='<div class="card"><h2>Activities on phones (manual override)</h2>'+d.activities.map(function(a){return '<div class="row"><div><b>'+a.id+'</b> '+esc(a.title)+'<div class="muted"><span class="n">'+a.n+'</span> submissions</div></div><button class="tog '+(a.open?'on':'')+'" data-open="'+a.id+'">'+(a.open?'Open ✓':'Closed')+'</button></div>';}).join('')+
+    '<div class="row"><div><b>Q&amp;A</b> audience questions<div class="muted">'+d.questions.length+' waiting</div></div><button class="tog '+(st.qOpen?'on':'')+'" id="qtog">'+(st.qOpen?'Open ✓':'Closed')+'</button></div></div>';
+  h+='<div class="card"><h2>Approve dreams for the Dream Wall · '+d.pendingTotal+' pending</h2>'+(d.pendingTotal?'<button class="small ok" id="allok" style="margin-bottom:8px">Approve all '+d.pendingTotal+' ✓</button> ':'')+
+    (d.moderation.length?d.moderation.map(function(m){return '<div class="mod"><div class="muted">'+esc(m.source.replace('dream_',''))+'</div><div>'+esc(m.text)+'</div><div style="margin-top:6px;display:flex;gap:6px"><button class="small ok" data-ok="'+esc(m.key)+'">✓ Approve</button><button class="small no" data-no="'+esc(m.key)+'">✗ Reject</button></div></div>';}).join('')+(d.pendingTotal>d.moderation.length?'<p class="muted">Showing the first '+d.moderation.length+'. Reject the unsuitable ones, then Approve all.</p>':''):'<p class="muted">Nothing pending.</p>')+'</div>';
+  h+='<div class="card"><h2>Q&amp;A questions</h2>'+(d.questions.length?d.questions.map(function(q){return '<div class="mod"><div>'+esc(q.text)+'</div><div class="muted">'+esc(q.status)+'</div><div style="margin-top:6px;display:flex;gap:6px"><button class="small sh" data-qs="'+q.qid+'">Show on screen</button><button class="small no" data-qd="'+q.qid+'">Done</button></div></div>';}).join(''):'<p class="muted">No questions yet.</p>')+'</div>';
+  h+='<div class="card"><h2>Admin</h2><div class="row"><div>Test mode<div class="muted">Charts show with fewer than 10 responses (dry run only)</div></div><button class="tog '+(st.test?'on':'')+'" id="ttog">'+(st.test?'On ✓':'Off')+'</button></div>'+
+    '<div class="row"><div>Registry<div class="muted">Pull newly registered guests now</div></div><button class="small sh" id="rreg">Refresh</button></div>'+
+    '<div class="row"><div>Reset all data<div class="muted">Dry run ke baad ONLY. Type RESET.</div></div><button class="small no" id="rst">Reset…</button></div></div>';
+  $('app').innerHTML=h;
+  var q=function(s,f){Array.prototype.forEach.call(document.querySelectorAll(s),f);};
+  q('[data-view]',function(b){b.onclick=function(){q('[data-view]',function(x){x.classList.toggle('on',x===b);});act(call('cShow',PIN,b.getAttribute('data-view')));};});
+  q('[data-t]',function(b){b.onclick=function(){act(call('cTimer',PIN,Number(b.getAttribute('data-t'))));};});
+  q('[data-open]',function(b){b.onclick=function(){var on=!b.classList.contains('on');b.classList.toggle('on',on);b.textContent=on?'Open ✓':'Closed';act(call('cSetOpen',PIN,b.getAttribute('data-open'),on));};});
+  q('[data-ok]',function(b){b.onclick=function(){b.parentNode.parentNode.style.opacity=.4;act(call('cModerate',PIN,b.getAttribute('data-ok'),true));};});
+  q('[data-no]',function(b){b.onclick=function(){b.parentNode.parentNode.style.opacity=.4;act(call('cModerate',PIN,b.getAttribute('data-no'),false));};});
+  q('[data-qs]',function(b){b.onclick=function(){act(call('cQ',PIN,'show',b.getAttribute('data-qs')));};});
+  q('[data-qd]',function(b){b.onclick=function(){act(call('cQ',PIN,'done',b.getAttribute('data-qd')));};});
+  $('qtog').onclick=function(){act(call('cQ',PIN,st.qOpen?'close':'open'));};
+  $('ttog').onclick=function(){act(call('cTest',PIN,!st.test));};
+  $('rreg').onclick=function(){act(call('cRefreshRegistry',PIN).then(function(n){alert('Registry: '+n+' guests');}));};
+  $('rst').onclick=function(){var t=prompt('This deletes ALL check-ins and answers. Type RESET to confirm.');if(t)act(call('cReset',PIN,t));};
+  if($('allok'))$('allok').onclick=function(){$('allok').disabled=true;act(call('cModerateAll',PIN,true));};
+  clearInterval(TM);TM=setInterval(function(){var el=$('tm');if(!el)return;var t=st.timer;if(!t){el.textContent='—';return;}var s=Math.max(0,Math.round((t.end-(Date.now()+SKEW))/1000));el.textContent=Math.floor(s/60)+':'+('0'+(s%60)).slice(-2);},500);
+}
+if(PIN)load(true);
+</script></body></html>
